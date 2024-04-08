@@ -27,35 +27,6 @@ class GapFillingScheduler:
         self.buildkite.set_access_token(buildkite_access_token)
         self.days_ago = days_ago
 
-    def run(self) -> List[str]:
-        """
-        Create gap filling builds for the latest failing build. If dry_run is True,
-        print the commits for each build but no builds will actually be created.
-        """
-        commits = self.get_gap_commits()
-
-        return [self._trigger_build(commit) for commit in commits]
-
-    def get_gap_commits(self) -> List[str]:
-        """
-        Return the list of commits between the latest passing and failing builds.
-        """
-        failing_revision = self._get_latest_commit_for_build_state("failed")
-        passing_revision = self._get_latest_commit_for_build_state("passed")
-        return (
-            subprocess.check_output(
-                f"git rev-list --reverse ^{passing_revision} {failing_revision}~",
-                shell=True,
-            )
-            .decode("utf-8")
-            .strip()
-            .split("\n")
-        )
-
-    def _trigger_build(self, commit: str) -> int:
-        # TODO(can): Implement this method
-        pass
-
     def _get_latest_commit_for_build_state(self, build_state: str) -> Optional[str]:
         latest_commits = self._get_latest_commits()
         builds = sorted(
