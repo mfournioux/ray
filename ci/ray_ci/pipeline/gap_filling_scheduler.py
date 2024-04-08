@@ -36,6 +36,12 @@ class GapFillingScheduler:
                 if build["state"] == build_state and build["commit"] in latest_commits
             ],
             key=lambda build: latest_commits.index(build["commit"]),
+
+    def _get_latest_revision_for_build_state(self, build_state: str) -> Optional[str]:
+        builds = sorted(
+            [build for build in self._get_builds() if build["state"] == build_state],
+            key=lambda build: build["number"],
+            reverse=True,
         )
         if not builds:
             return None
