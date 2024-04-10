@@ -87,6 +87,14 @@ run_ray_cpp_and_java() {
   ./ci/ci.sh test_cpp || exit 42
 }
 
+bisect() {
+  test="$1"
+  passing_revision="$2"
+  failing_revision="$3"
+  cp ci/ray_ci/macos/macos_ci_test.sh /tmp/macos_ci_test.sh
+  bazel run //ci/ray_ci:bisect_test -- $test $passing_revision $failing_revision
+}
+
 _prelude() {
   rm -rf /tmp/bazel_event_logs
   (which bazel && bazel clean) || true;
