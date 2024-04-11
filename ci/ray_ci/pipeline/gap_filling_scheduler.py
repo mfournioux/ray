@@ -27,6 +27,48 @@ class GapFillingScheduler:
         self.buildkite.set_access_token(buildkite_access_token)
         self.days_ago = days_ago
 
+        self._builds = None
+
+    def run(self) -> List[str]:
+        """
+        Create gap filling builds for the latest failing build. If dry_run is True,
+        print the commits for each build but no builds will actually be created.
+        """
+        commits = self.get_gap_commits()
+
+        return [self._trigger_build(commit) for commit in commits]
+
+    def get_gap_commits(self) -> List[str]:
+        """
+        Return the list of commits between the latest passing and failing builds.
+        """
+        failing_revision = self._get_latest_commit_for_build_state("failed")
+        passing_revision = self._get_latest_commit_for_build_state("passed")
+        return (
+            subprocess.check_output(
+                f"git rev-list --reverse ^{passing_revision} {failing_revision}~",
+                shell=True,
+            )
+            .decode("utf-8")
+            .strip()
+            .split("\n")
+        )
+
+    def _trigger_build(self, commit: str) -> int:
+        build = [
+            build
+            for build in self._get_builds()
+            if build["commit"] == commit and build["state"] == "blocked"
+        ][0]
+        self.buildkite.jobs().unblock_job(
+            self.buildkite_organization,
+            self.buildkite_pipeline,
+            build["number"],
+            build["jobs"][0]["id"],  # first job is the blocked job
+        )
+
+        return build["number"]
+
     def _get_latest_commit_for_build_state(self, build_state: str) -> Optional[str]:
         latest_commits = self._get_latest_commits()
         builds = sorted(
@@ -58,9 +100,12 @@ class GapFillingScheduler:
         )
 
     def _get_builds(self) -> List[Dict[str, Any]]:
-        return self.buildkite.builds().list_all_for_pipeline(
-            self.buildkite_organization,
-            self.buildkite_pipeline,
-            created_from=datetime.now() - timedelta(days=self.days_ago),
-            branch=BRANCH,
-        )
+        if not self._builds:
+            self._builds = self.buildkite.builds().list_all_for_pipeline(
+                self.buildkite_organization,
+                self.buildkite_pipeline,
+                created_from=datetime.now() - timedelta(days=self.days_ago),
+                branch=BRANCH,
+            )
+
+        return self._builds
